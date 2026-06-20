@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ccstatusline-editor"
+version = "1.0.0"
+description = "Visual drag-and-drop editor for ccstatusline config files"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.8"
+dependencies = ["flask"]
+keywords = ["ccstatusline", "claude", "statusline", "terminal", "config"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/dpc00/ccstatusline-editor"
+Repository = "https://github.com/dpc00/ccstatusline-editor"
+
+[project.scripts]
+ccstatusline-editor = "ccstatusline_editor.app:main"
+
+[tool.setuptools.packages.find]
+include = ["ccstatusline_editor*"]
+
+[tool.setuptools.package-data]
+ccstatusline_editor = ["templates/*"]

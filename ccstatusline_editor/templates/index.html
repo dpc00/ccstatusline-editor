@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ccstatusline Editor</title>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #1a1a1a;
+    --bg2: #242424;
+    --bg3: #2e2e2e;
+    --border: #3a3a3a;
+    --text: #d4d4d4;
+    --text-dim: #888;
+    --accent: #4a9eff;
+    --danger: #e05555;
+    --success: #4caf74;
+    --chip-h: 28px;
+  }
+
+  body { background: var(--bg); color: var(--text); font: 13px/1.4 "Cascadia Code", "Consolas", monospace; display: flex; height: 100vh; overflow: hidden; }
+
+  /* === LEFT PANEL === */
+  #palette {
+    width: 220px; min-width: 220px; background: var(--bg2); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  #palette h2 { padding: 12px 14px 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); }
+  #palette-search { margin: 0 10px 8px; padding: 5px 8px; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font: inherit; width: calc(100% - 20px); }
+  #palette-search:focus { outline: none; border-color: var(--accent); }
+  #palette-list { overflow-y: auto; flex: 1; padding: 0 8px 8px; }
+  .palette-group { margin-top: 6px; }
+  .palette-group-label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .06em; padding: 4px 4px 2px; }
+  .palette-item {
+    padding: 4px 8px; border-radius: 4px; cursor: grab; user-select: none;
+    font-size: 12px; color: var(--text); margin: 1px 0;
+    transition: background .1s;
+  }
+  .palette-item:hover { background: var(--bg3); }
+  .palette-item.layout { color: #aaa; font-style: italic; }
+
+  /* === MAIN AREA === */
+  #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  #toolbar {
+    background: var(--bg2); border-bottom: 1px solid var(--border);
+    padding: 8px 14px; display: flex; align-items: center; gap: 8px;
+  }
+  #toolbar h1 { font-size: 13px; font-weight: normal; color: var(--text-dim); flex: 1; }
+  .btn {
+    padding: 4px 12px; border-radius: 4px; border: 1px solid var(--border);
+    background: var(--bg3); color: var(--text); font: inherit; cursor: pointer;
+    font-size: 12px; transition: background .1s, border-color .1s;
+  }
+  .btn:hover { background: #383838; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { background: #3a8eee; }
+  .btn.danger { color: var(--danger); border-color: #5a3535; }
+  .btn.danger:hover { background: #3a2525; }
+  #save-status { font-size: 11px; color: var(--text-dim); }
+  #save-status.ok { color: var(--success); }
+  #save-status.err { color: var(--danger); }
+
+  #lines-container { flex: 1; overflow-y: auto; padding: 12px; }
+
+  .status-line {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 6px;
+    margin-bottom: 8px; overflow: hidden;
+  }
+  .line-header {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 10px; background: var(--bg3); border-bottom: 1px solid var(--border);
+  }
+  .line-label { font-size: 11px; color: var(--text-dim); flex: 1; }
+  .line-delete { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 14px; line-height: 1; padding: 0 2px; }
+  .line-delete:hover { color: var(--danger); }
+
+  .chip-row {
+    min-height: 46px; display: flex; flex-wrap: wrap; align-items: center;
+    gap: 4px; padding: 8px 10px;
+  }
+  .chip-row.drag-over { background: #2a2a3a; }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    height: var(--chip-h); padding: 0 8px; border-radius: 4px;
+    border: 1px solid rgba(255,255,255,.1); cursor: grab;
+    font-size: 11px; user-select: none; position: relative;
+    transition: opacity .1s, transform .1s;
+  }
+  .chip:hover { border-color: rgba(255,255,255,.25); }
+  .chip.sortable-ghost { opacity: .3; }
+  .chip.separator-chip { font-style: italic; color: #888; }
+  .chip.flex-separator-chip { font-style: italic; color: #888; border-style: dashed; }
+
+  .chip-label { pointer-events: none; }
+  .chip-x {
+    width: 14px; height: 14px; display: flex; align-items: center; justify-content: center;
+    border-radius: 50%; background: rgba(255,255,255,.1); font-size: 10px; cursor: pointer;
+    line-height: 1; pointer-events: all;
+  }
+  .chip-x:hover { background: var(--danger); }
+
+  .drop-hint { font-size: 11px; color: var(--text-dim); font-style: italic; padding: 2px 4px; }
+
+  #add-line-btn { margin: 4px 0 12px; }
+
+  /* === RIGHT PANEL (editor) === */
+  #editor-panel {
+    width: 240px; min-width: 240px; background: var(--bg2); border-left: 1px solid var(--border);
+    display: flex; flex-direction: column; transition: width .2s;
+  }
+  #editor-panel.hidden { width: 0; min-width: 0; overflow: hidden; }
+  #editor-inner { padding: 14px; overflow-y: auto; flex: 1; }
+  #editor-inner h3 { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 10px; }
+  .field { margin-bottom: 10px; }
+  .field label { display: block; font-size: 11px; color: var(--text-dim); margin-bottom: 3px; }
+  .field input, .field select, .field textarea {
+    width: 100%; padding: 4px 7px; background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 4px; color: var(--text); font: inherit; font-size: 12px;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--accent); }
+  .field textarea { resize: vertical; min-height: 54px; }
+  #editor-close { margin: 0 14px 14px; }
+
+  .color-swatches { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .swatch {
+    width: 22px; height: 22px; border-radius: 3px; cursor: pointer; border: 2px solid transparent;
+    transition: border-color .1s;
+  }
+  .swatch.active { border-color: white; }
+  .swatch.none { background: var(--bg3); border: 2px dashed var(--border); }
+
+  #editor-apply { width: 100%; margin-top: 4px; }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+
+  /* === SCHEMES MODAL === */
+  #schemes-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7);
+    z-index: 100; align-items: center; justify-content: center;
+  }
+  #schemes-overlay.open { display: flex; }
+  #schemes-modal {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+    width: min(860px, 96vw); max-height: 88vh; display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  #schemes-header {
+    padding: 10px 16px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  #schemes-header h2 { font-size: 13px; font-weight: normal; }
+  .scheme-tabs { display: flex; gap: 2px; flex: 1; }
+  .scheme-tab {
+    padding: 4px 12px; border-radius: 4px; border: 1px solid var(--border);
+    background: transparent; color: var(--text-dim); font: inherit; font-size: 12px;
+    cursor: pointer; transition: all .15s;
+  }
+  .scheme-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  #schemes-search { padding: 4px 8px; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font: inherit; font-size: 12px; width: 160px; }
+  #schemes-search:focus { outline: none; border-color: var(--accent); }
+  #schemes-grid {
+    overflow-y: auto; padding: 12px; flex: 1;
+    display: grid; gap: 8px;
+  }
+  #schemes-grid.widget-mode { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+  #schemes-grid.color-mode  { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+  .scheme-card {
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 6px;
+    padding: 10px 12px; cursor: pointer; transition: border-color .15s, background .15s;
+  }
+  .scheme-card:hover { border-color: var(--accent); background: #252535; }
+  .scheme-card h3 { font-size: 12px; font-weight: normal; margin-bottom: 3px; }
+  .scheme-card p { font-size: 10px; color: var(--text-dim); margin-bottom: 7px; line-height: 1.4; }
+  .scheme-swatches { display: flex; gap: 3px; flex-wrap: wrap; }
+  .scheme-dot { width: 12px; height: 12px; border-radius: 50%; }
+  .scheme-preview { display: flex; flex-direction: column; gap: 3px; }
+  .scheme-line-preview { display: flex; flex-wrap: wrap; gap: 3px; }
+  .scheme-widget-pill {
+    font-size: 9px; padding: 1px 5px; border-radius: 3px;
+    border: 1px solid rgba(255,255,255,.12); white-space: nowrap;
+  }
+  .scheme-tag { font-size: 9px; color: var(--text-dim); margin-right: 4px; }
+</style>
+</head>
+<body>
+
+<!-- PALETTE -->
+<div id="palette">
+  <h2>Widgets</h2>
+  <input id="palette-search" type="text" placeholder="Search…" autocomplete="off">
+  <div id="palette-list"></div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+  <div id="toolbar">
+    <h1>ccstatusline editor</h1>
+    <span id="save-status"></span>
+    <label style="font-size:11px;color:var(--text-dim)">Sep
+      <select id="sep-char" style="margin-left:4px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:2px 4px;font:inherit;font-size:12px">
+        <option value="">none</option>
+        <option value="|" selected>|</option>
+        <option value=" ">space</option>
+        <option value=" • ">•</option>
+        <option value="─">─</option>
+        <option value="›">›</option>
+      </select>
+    </label>
+    <button class="btn" onclick="insertSeparators()" title="Insert separators between all widgets on each line">+ Seps</button>
+    <label style="font-size:11px;color:var(--text-dim)">Max lines
+      <input id="max-lines" type="number" min="1" max="20" placeholder="∞"
+        style="width:44px;margin-left:4px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:2px 4px;font:inherit;font-size:12px;text-align:center">
+    </label>
+    <button class="btn" onclick="openSchemes()">Schemes</button>
+    <button class="btn" onclick="saveCurrentAsPreset()" title="Save current layout as a named preset">Save Preset</button>
+    <button class="btn" onclick="addLine()">+ Line</button>
+    <button class="btn primary" onclick="saveSettings()">Save</button>
+    <button class="btn danger" onclick="quitApp()" title="Stop the editor server">✕ Quit</button>
+  </div>
+  <div id="lines-container"></div>
+</div>
+
+<!-- EDITOR PANEL -->
+<div id="editor-panel" class="hidden">
+  <div id="editor-inner">
+    <h3>Edit Widget</h3>
+    <div class="field">
+      <label>Type</label>
+      <input id="ed-type" readonly>
+    </div>
+    <div class="field">
+      <label>Color</label>
+      <div class="color-swatches" id="ed-color-swatches"></div>
+    </div>
+    <div id="ed-meta-fields"></div>
+  </div>
+  <button class="btn" id="editor-close" onclick="closeEditor()">Close</button>
+</div>
+
+<!-- SAVE PRESET MODAL -->
+<div id="save-preset-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;align-items:center;justify-content:center;">
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:20px;width:340px;display:flex;flex-direction:column;gap:12px;">
+    <h3 style="font-size:13px;font-weight:600">Save as Preset</h3>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <label style="font-size:11px;color:var(--text-dim)">Name</label>
+      <input id="preset-name-input" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:5px 8px;font:inherit;font-size:12px" placeholder="My preset" onkeydown="if(event.key==='Enter')confirmSavePreset()">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <label style="font-size:11px;color:var(--text-dim)">Description (optional)</label>
+      <input id="preset-desc-input" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:5px 8px;font:inherit;font-size:12px" placeholder="What's this for?">
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
+      <button class="btn" onclick="document.getElementById('save-preset-overlay').style.display='none'">Cancel</button>
+      <button class="btn primary" onclick="confirmSavePreset()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- SCHEMES MODAL -->
+<div id="schemes-overlay">
+  <div id="schemes-modal">
+    <div id="schemes-header">
+      <h2>Schemes</h2>
+      <div class="scheme-tabs">
+        <button class="scheme-tab active" id="tab-widget" onclick="switchTab('widget')">Widget Presets</button>
+        <button class="scheme-tab" id="tab-color" onclick="switchTab('color')">Color Themes</button>
+        <button class="scheme-tab" id="tab-my" onclick="switchTab('my')">My Presets</button>
+      </div>
+      <input id="schemes-search" type="text" placeholder="Filter…" oninput="rebuildSchemes()">
+      <button class="btn" onclick="closeSchemes()">Close</button>
+    </div>
+    <div id="schemes-grid" class="widget-mode"></div>
+  </div>
+</div>
+
+<script>
+// ── Data ────────────────────────────────────────────────────────────────────
+const WIDGET_TYPES = {{ widget_types | tojson }};
+const COLOR_SCHEMES = {{ color_schemes | tojson }};
+const WIDGET_SCHEMES = {{ widget_schemes | tojson }};
+const GROUPS = {{ groups | tojson }};
+
+// build type→group lookup
+const TYPE_GROUP = {};
+for (const w of WIDGET_TYPES) TYPE_GROUP[w.type] = w.group;
+const COLORS = ["black","red","green","yellow","blue","magenta","cyan","white"];
+const COLOR_HEX = {
+  black:"#333", red:"#e05555", green:"#4caf74", yellow:"#d4a847",
+  blue:"#4a9eff", magenta:"#c77dff", cyan:"#3dd6d6", white:"#d4d4d4"
+};
+
+let settings = null;
+let nextId = 1;
+let activeChip = null; // { lineIdx, chipIdx, widget }
+let userPresets = [];
+
+function loadUserPresets() {
+  fetch("/api/presets").then(r => r.json()).then(data => { userPresets = data; });
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+buildPalette();
+loadSettings();
+loadUserPresets();
+
+function uid() { return String(nextId++); }
+
+function loadSettings() {
+  fetch("/api/settings")
+    .then(r => r.json())
+    .then(data => {
+      settings = data;
+      recalcNextId();
+      renderAll();
+    })
+    .catch(e => setStatus("Failed to load: " + e, "err"));
+}
+
+function recalcNextId() {
+  let max = 0;
+  for (const line of settings.lines) {
+    for (const w of line) {
+      const n = parseInt(w.id);
+      if (!isNaN(n) && n > max) max = n;
+    }
+  }
+  nextId = max + 1;
+}
+
+// ── Palette ──────────────────────────────────────────────────────────────────
+function buildPalette() {
+  const groups = {};
+  for (const w of WIDGET_TYPES) {
+    (groups[w.group] = groups[w.group] || []).push(w);
+  }
+  const list = document.getElementById("palette-list");
+  list.innerHTML = "";
+  for (const [group, items] of Object.entries(groups)) {
+    const g = document.createElement("div");
+    g.className = "palette-group";
+    g.dataset.group = group;
+    g.innerHTML = `<div class="palette-group-label">${group}</div>`;
+    for (const item of items) {
+      const el = document.createElement("div");
+      el.className = "palette-item" + (group === "Layout" ? " layout" : "");
+      el.textContent = item.type;
+      el.dataset.type = item.type;
+      el.draggable = true;
+      el.addEventListener("dragstart", e => {
+        e.dataTransfer.setData("widget-type", item.type);
+        e.dataTransfer.effectAllowed = "copy";
+      });
+      el.addEventListener("dblclick", () => addWidgetToLastLine(item.type));
+      g.appendChild(el);
+    }
+    list.appendChild(g);
+  }
+
+  document.getElementById("palette-search").addEventListener("input", e => {
+    const q = e.target.value.toLowerCase();
+    for (const el of list.querySelectorAll(".palette-item")) {
+      const show = !q || el.dataset.type.includes(q);
+      el.style.display = show ? "" : "none";
+    }
+    for (const g of list.querySelectorAll(".palette-group")) {
+      const anyVisible = [...g.querySelectorAll(".palette-item")].some(i => i.style.display !== "none");
+      g.style.display = anyVisible ? "" : "none";
+    }
+  });
+}
+
+function addWidgetToLastLine(type) {
+  if (!settings) return;
+  const w = { id: uid(), type };
+  if (settings.lines.length === 0) settings.lines.push([]);
+  settings.lines[settings.lines.length - 1].push(w);
+  renderAll();
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function renderAll() {
+  const container = document.getElementById("lines-container");
+  container.innerHTML = "";
+  settings.lines.forEach((line, li) => {
+    container.appendChild(renderLine(line, li));
+  });
+}
+
+function chipColor(widget) {
+  if (!widget.color) return "#444";
+  return COLOR_HEX[widget.color] || "#666";
+}
+
+function chipBg(widget) {
+  const c = chipColor(widget);
+  return c + "22";
+}
+
+function renderLine(line, li) {
+  const div = document.createElement("div");
+  div.className = "status-line";
+  div.dataset.lineIdx = li;
+
+  div.innerHTML = `
+    <div class="line-header">
+      <span class="line-label">Line ${li + 1}</span>
+      <button class="line-delete" title="Remove line" onclick="deleteLine(${li})">✕</button>
+    </div>
+    <div class="chip-row" id="chip-row-${li}"></div>
+  `;
+
+  const row = div.querySelector(".chip-row");
+
+  if (line.length === 0) {
+    row.innerHTML = `<span class="drop-hint">Drop widgets here or double-click in palette</span>`;
+  } else {
+    line.forEach((widget, wi) => {
+      row.appendChild(renderChip(widget, li, wi));
+    });
+  }
+
+  // Drop from palette
+  row.addEventListener("dragover", e => { e.preventDefault(); row.classList.add("drag-over"); });
+  row.addEventListener("dragleave", () => row.classList.remove("drag-over"));
+  row.addEventListener("drop", e => {
+    e.preventDefault();
+    row.classList.remove("drag-over");
+    const type = e.dataTransfer.getData("widget-type");
+    if (type) {
+      settings.lines[li].push({ id: uid(), type });
+      renderAll();
+    }
+  });
+
+  // Sortable within and between lines
+  Sortable.create(row, {
+    group: "chips",
+    animation: 120,
+    ghostClass: "sortable-ghost",
+    filter: ".chip-x,.drop-hint",
+    onEnd(evt) {
+      const fromLine = parseInt(evt.from.closest(".status-line").dataset.lineIdx);
+      const toLine = parseInt(evt.to.closest(".status-line").dataset.lineIdx);
+      const widget = settings.lines[fromLine].splice(evt.oldIndex, 1)[0];
+      settings.lines[toLine].splice(evt.newIndex, 0, widget);
+      renderAll();
+      if (document.getElementById("sep-char").value) insertSeparators();
+    }
+  });
+
+  return div;
+}
+
+function renderChip(widget, li, wi) {
+  const isSep = widget.type === "separator";
+  const isFlex = widget.type === "flex-separator";
+  const label = isSep ? "│sep│" : isFlex ? "⟷flex" : widget.type;
+
+  const chip = document.createElement("div");
+  chip.className = "chip" + (isSep ? " separator-chip" : "") + (isFlex ? " flex-separator-chip" : "");
+  chip.style.borderColor = chipColor(widget) + "66";
+  chip.style.background = chipBg(widget);
+  chip.style.color = chipColor(widget);
+  chip.dataset.lineIdx = li;
+  chip.dataset.chipIdx = wi;
+
+  chip.innerHTML = `<span class="chip-label">${label}</span><span class="chip-x" title="Remove">×</span>`;
+
+  chip.querySelector(".chip-x").addEventListener("click", e => {
+    e.stopPropagation();
+    settings.lines[li].splice(wi, 1);
+    if (activeChip && activeChip.lineIdx === li && activeChip.chipIdx === wi) closeEditor();
+    renderAll();
+  });
+
+  if (!isSep && !isFlex) {
+    chip.addEventListener("click", () => openEditor(widget, li, wi));
+  }
+
+  return chip;
+}
+
+// ── Editor panel ─────────────────────────────────────────────────────────────
+function openEditor(widget, li, wi) {
+  activeChip = { lineIdx: li, chipIdx: wi, widget };
+  document.getElementById("ed-type").value = widget.type;
+
+  // Color swatches
+  const swatches = document.getElementById("ed-color-swatches");
+  swatches.innerHTML = "";
+
+  const none = document.createElement("div");
+  none.className = "swatch none" + (!widget.color ? " active" : "");
+  none.title = "none";
+  none.addEventListener("click", () => setColor(null));
+  swatches.appendChild(none);
+
+  for (const c of COLORS) {
+    const s = document.createElement("div");
+    s.className = "swatch" + (widget.color === c ? " active" : "");
+    s.style.background = COLOR_HEX[c];
+    s.title = c;
+    s.addEventListener("click", () => setColor(c));
+    swatches.appendChild(s);
+  }
+
+  // Metadata fields
+  renderMetaFields(widget);
+
+  document.getElementById("editor-panel").classList.remove("hidden");
+}
+
+function setColor(color) {
+  if (!activeChip) return;
+  if (color) activeChip.widget.color = color;
+  else delete activeChip.widget.color;
+  openEditor(activeChip.widget, activeChip.lineIdx, activeChip.chipIdx);
+  renderAll();
+}
+
+function renderMetaFields(widget) {
+  const container = document.getElementById("ed-meta-fields");
+  container.innerHTML = "";
+
+  const type = widget.type;
+  const meta = widget.metadata || {};
+
+  const fields = metaFieldsFor(type);
+  if (fields.length === 0) return;
+
+  const h = document.createElement("div");
+  h.className = "field";
+  h.innerHTML = "<label>Metadata</label>";
+  container.appendChild(h);
+
+  for (const f of fields) {
+    const d = document.createElement("div");
+    d.className = "field";
+    d.innerHTML = `<label>${f.label}</label>`;
+    const input = document.createElement(f.multi ? "textarea" : "input");
+    input.value = (f.direct ? activeChip.widget[f.key] : meta[f.key]) || "";
+    input.placeholder = f.placeholder || "";
+    input.addEventListener("change", () => {
+      if (f.direct) {
+        if (input.value) activeChip.widget[f.key] = input.value;
+        else delete activeChip.widget[f.key];
+      } else {
+        if (!activeChip.widget.metadata) activeChip.widget.metadata = {};
+        if (input.value) activeChip.widget.metadata[f.key] = input.value;
+        else delete activeChip.widget.metadata[f.key];
+      }
+      renderAll();
+    });
+    d.appendChild(input);
+    container.appendChild(d);
+  }
+}
+
+function metaFieldsFor(type) {
+  if (type === "custom-text")    return [{ key: "text", label: "Text", placeholder: "hello" }];
+  if (type === "custom-symbol")  return [{ key: "symbol", label: "Symbol", placeholder: "◆" }];
+  if (type === "custom-command") return [{ key: "command", label: "Command", placeholder: "echo hi", multi: true }];
+  if (type === "link")           return [{ key: "text", label: "Link text", placeholder: "link" }, { key: "url", label: "URL", placeholder: "https://…" }];
+  if (type === "separator")      return [{ key: "character", label: "Character", placeholder: "|", direct: true }];
+  if (type === "compaction-counter") return [{ key: "hideZero", label: "Hide when zero (true/false)", placeholder: "true" }];
+  return [];
+}
+
+function closeEditor() {
+  activeChip = null;
+  document.getElementById("editor-panel").classList.add("hidden");
+}
+
+// ── Lines ────────────────────────────────────────────────────────────────────
+function addLine() {
+  settings.lines.push([]);
+  renderAll();
+}
+
+function deleteLine(li) {
+  if (settings.lines.length === 1) { settings.lines[0] = []; renderAll(); return; }
+  settings.lines.splice(li, 1);
+  renderAll();
+}
+
+// ── Save ─────────────────────────────────────────────────────────────────────
+function setStatus(msg, cls) {
+  const el = document.getElementById("save-status");
+  el.textContent = msg;
+  el.className = cls || "";
+  if (cls === "ok") setTimeout(() => { el.textContent = ""; el.className = ""; }, 2500);
+}
+
+function saveSettings() {
+  fetch("/api/settings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settings, null, 2)
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok) setStatus("Saved ✓", "ok");
+    else setStatus("Error: " + JSON.stringify(data), "err");
+  })
+  .catch(e => setStatus("Save failed: " + e, "err"));
+}
+
+function quitApp() {
+  fetch("/api/shutdown", { method: "POST" }).catch(() => {});
+  document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#888;font:13px monospace">Server stopped. Close this tab.</div>';
+}
+
+// Ctrl+S to save
+document.addEventListener("keydown", e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); saveSettings(); }
+  if (e.key === "Escape") closeSchemes();
+});
+
+// ── Schemes ──────────────────────────────────────────────────────────────────
+let currentTab = "widget";
+
+function openSchemes(tab) {
+  document.getElementById("schemes-search").value = "";
+  document.getElementById("schemes-overlay").classList.add("open");
+  if (tab) switchTab(tab); else rebuildSchemes();
+}
+function closeSchemes() {
+  document.getElementById("schemes-overlay").classList.remove("open");
+}
+document.getElementById("schemes-overlay").addEventListener("click", e => {
+  if (e.target === document.getElementById("schemes-overlay")) closeSchemes();
+});
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById("tab-widget").classList.toggle("active", tab === "widget");
+  document.getElementById("tab-color").classList.toggle("active", tab === "color");
+  document.getElementById("tab-my").classList.toggle("active", tab === "my");
+  const grid = document.getElementById("schemes-grid");
+  grid.className = tab === "widget" ? "widget-mode" : tab === "my" ? "widget-mode" : "color-mode";
+  rebuildSchemes();
+}
+
+function rebuildSchemes() {
+  const q = document.getElementById("schemes-search").value.toLowerCase();
+  if (currentTab === "widget") {
+    const list = q ? WIDGET_SCHEMES.filter(s =>
+      s.name.toLowerCase().includes(q) || s.desc.toLowerCase().includes(q) ||
+      (s.tags || []).some(t => t.includes(q))
+    ) : WIDGET_SCHEMES;
+    buildWidgetGrid(list);
+  } else if (currentTab === "my") {
+    const list = q ? userPresets.filter(s =>
+      s.name.toLowerCase().includes(q) || (s.desc || "").toLowerCase().includes(q)
+    ) : userPresets;
+    buildMyPresetsGrid(list);
+  } else {
+    const list = q ? COLOR_SCHEMES.filter(s =>
+      s.name.toLowerCase().includes(q) || s.desc.toLowerCase().includes(q)
+    ) : COLOR_SCHEMES;
+    buildColorGrid(list);
+  }
+}
+
+function buildMyPresetsGrid(list) {
+  const grid = document.getElementById("schemes-grid");
+  grid.innerHTML = "";
+  if (!list.length) {
+    grid.innerHTML = '<p style="color:var(--text-dim);padding:16px;grid-column:1/-1">No saved presets yet. Use "Save Preset" in the toolbar to add one.</p>';
+    return;
+  }
+  for (const s of list) {
+    const card = document.createElement("div");
+    card.className = "scheme-card";
+    card.style.position = "relative";
+    const preview = (s.lines || []).map(line => {
+      const pills = line.filter(w => w.type !== "flex-separator" && w.type !== "separator")
+        .map(w => `<span class="scheme-widget-pill" style="color:${COLOR_HEX[w.color]||'#aaa'};border-color:${COLOR_HEX[w.color]||'#555'}44">${w.type}</span>`)
+        .join("");
+      return `<div class="scheme-line-preview">${pills}</div>`;
+    }).join("");
+    card.innerHTML = `
+      <button title="Delete" onclick="deleteUserPreset(${JSON.stringify(s.name)},event)"
+        style="position:absolute;top:6px;right:6px;background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;line-height:1;padding:2px 4px"
+        onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-dim)'">✕</button>
+      <h3>${s.name}</h3><p>${s.desc || ""}</p>
+      <div class="scheme-preview" style="margin-top:6px">${preview}</div>`;
+    card.addEventListener("click", e => { if (!e.target.closest("button")) applyWidgetScheme(s); });
+    grid.appendChild(card);
+  }
+}
+
+function saveCurrentAsPreset() {
+  if (!settings) return;
+  document.getElementById("preset-name-input").value = "";
+  document.getElementById("preset-desc-input").value = "";
+  document.getElementById("save-preset-overlay").style.display = "flex";
+  setTimeout(() => document.getElementById("preset-name-input").focus(), 50);
+}
+
+function confirmSavePreset() {
+  const name = document.getElementById("preset-name-input").value.trim();
+  if (!name) { document.getElementById("preset-name-input").focus(); return; }
+  const desc = document.getElementById("preset-desc-input").value.trim();
+  const lines = settings.lines.map(line => line.map(w => {
+    const out = { type: w.type };
+    if (w.color) out.color = w.color;
+    if (w.character) out.character = w.character;
+    if (w.metadata) out.metadata = w.metadata;
+    return out;
+  }));
+  fetch("/api/presets", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, desc, lines })
+  }).then(r => r.json()).then(() => {
+    document.getElementById("save-preset-overlay").style.display = "none";
+    fetch("/api/presets").then(r => r.json()).then(data => {
+      userPresets = data;
+      setStatus(`Preset "${name}" saved`, "ok");
+    });
+  });
+}
+
+function deleteUserPreset(name, e) {
+  e.stopPropagation();
+  if (!confirm(`Delete preset "${name}"?`)) return;
+  fetch(`/api/presets/${encodeURIComponent(name)}`, { method: "DELETE" })
+    .then(r => r.json()).then(() => {
+      userPresets = userPresets.filter(p => p.name !== name);
+      rebuildSchemes();
+    });
+}
+
+function buildWidgetGrid(list) {
+  const grid = document.getElementById("schemes-grid");
+  grid.innerHTML = "";
+  for (const s of list) {
+    const card = document.createElement("div");
+    card.className = "scheme-card";
+    const tags = (s.tags || []).map(t => `<span class="scheme-tag">#${t}</span>`).join("");
+    const preview = s.lines.map(line => {
+      const pills = line.filter(w => w.type !== "flex-separator" && w.type !== "separator")
+        .map(w => `<span class="scheme-widget-pill" style="color:${COLOR_HEX[w.color]||'#aaa'};border-color:${COLOR_HEX[w.color]||'#555'}44">${w.type}</span>`)
+        .join("");
+      return `<div class="scheme-line-preview">${pills}</div>`;
+    }).join("");
+    card.innerHTML = `<h3>${s.name}</h3><p>${s.desc}</p><div>${tags}</div><div class="scheme-preview" style="margin-top:6px">${preview}</div>`;
+    card.addEventListener("click", () => applyWidgetScheme(s));
+    grid.appendChild(card);
+  }
+}
+
+function buildColorGrid(list) {
+  const grid = document.getElementById("schemes-grid");
+  grid.innerHTML = "";
+  for (const s of list) {
+    const card = document.createElement("div");
+    card.className = "scheme-card";
+    const uniqueColors = [...new Set(Object.values(s.colors).filter(Boolean))];
+    const dots = uniqueColors.map(c =>
+      `<div class="scheme-dot" style="background:${COLOR_HEX[c]||'#555'}" title="${c}"></div>`
+    ).join("");
+    card.innerHTML = `<h3>${s.name}</h3><p>${s.desc}</p><div class="scheme-swatches">${dots}</div>`;
+    card.addEventListener("click", () => applyColorScheme(s));
+    grid.appendChild(card);
+  }
+}
+
+function applyColorScheme(scheme) {
+  if (!settings) return;
+  for (const line of settings.lines) {
+    for (const widget of line) {
+      const group = TYPE_GROUP[widget.type];
+      if (group && scheme.colors[group]) widget.color = scheme.colors[group];
+      else if (group === "Layout") delete widget.color;
+    }
+  }
+  closeSchemes();
+  renderAll();
+  setStatus(`Color theme "${scheme.name}" applied`, "ok");
+}
+
+function applyWidgetScheme(scheme) {
+  if (!settings) return;
+  let id = nextId;
+  let lines = scheme.lines.map(line =>
+    line.map(w => ({ id: String(id++), ...w }))
+  );
+  const maxL = parseInt(document.getElementById("max-lines").value);
+  if (!isNaN(maxL) && maxL > 0) lines = lines.slice(0, maxL);
+  nextId = id;
+  settings.lines = lines;
+  closeSchemes();
+  renderAll();
+  // Auto-insert separators if a character is selected
+  if (document.getElementById("sep-char").value) insertSeparators();
+  setStatus(`Preset "${scheme.name}" applied`, "ok");
+}
+
+// ── Auto-separators ───────────────────────────────────────────────────────────
+function insertSeparators() {
+  if (!settings) return;
+  const char = document.getElementById("sep-char").value;
+  for (let li = 0; li < settings.lines.length; li++) {
+    // Strip existing plain separators, keep flex-separators
+    const stripped = settings.lines[li].filter(w => w.type !== "separator");
+    const withSeps = [];
+    for (let i = 0; i < stripped.length; i++) {
+      withSeps.push(stripped[i]);
+      const notLast = i < stripped.length - 1;
+      const nextIsFlex = notLast && stripped[i+1].type === "flex-separator";
+      const thisIsFlex = stripped[i].type === "flex-separator";
+      if (notLast && !nextIsFlex && !thisIsFlex) {
+        const sep = { id: String(nextId++), type: "separator" };
+        if (char) sep.character = char;
+        withSeps.push(sep);
+      }
+    }
+    settings.lines[li] = withSeps;
+  }
+  renderAll();
+  setStatus("Separators inserted", "ok");
+}
+</script>
+</body>
+</html>
