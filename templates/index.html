@@ -206,7 +206,7 @@
     <label style="font-size:11px;color:var(--text-dim)">Sep
       <select id="sep-char" style="margin-left:4px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:2px 4px;font:inherit;font-size:12px">
         <option value="">none</option>
-        <option value="|">|</option>
+        <option value="|" selected>|</option>
         <option value=" ">space</option>
         <option value="•">•</option>
         <option value="─">─</option>
@@ -422,8 +422,8 @@ function renderLine(line, li) {
       const toLine = parseInt(evt.to.closest(".status-line").dataset.lineIdx);
       const widget = settings.lines[fromLine].splice(evt.oldIndex, 1)[0];
       settings.lines[toLine].splice(evt.newIndex, 0, widget);
-      // Remove drop hint placeholder elements introduced by Sortable
       renderAll();
+      if (document.getElementById("sep-char").value) insertSeparators();
     }
   });
 
@@ -680,13 +680,14 @@ function applyWidgetScheme(scheme) {
   let lines = scheme.lines.map(line =>
     line.map(w => ({ id: String(id++), ...w }))
   );
-  // Respect max lines
   const maxL = parseInt(document.getElementById("max-lines").value);
   if (!isNaN(maxL) && maxL > 0) lines = lines.slice(0, maxL);
   nextId = id;
   settings.lines = lines;
   closeSchemes();
   renderAll();
+  // Auto-insert separators if a character is selected
+  if (document.getElementById("sep-char").value) insertSeparators();
   setStatus(`Preset "${scheme.name}" applied`, "ok");
 }
 
