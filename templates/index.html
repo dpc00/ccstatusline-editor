@@ -219,8 +219,10 @@
         style="width:44px;margin-left:4px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:2px 4px;font:inherit;font-size:12px;text-align:center">
     </label>
     <button class="btn" onclick="openSchemes()">Schemes</button>
+    <button class="btn" onclick="saveCurrentAsPreset()" title="Save current layout as a named preset">Save Preset</button>
     <button class="btn" onclick="addLine()">+ Line</button>
     <button class="btn primary" onclick="saveSettings()">Save</button>
+    <button class="btn danger" onclick="quitApp()" title="Stop the editor server">✕ Quit</button>
   </div>
   <div id="lines-container"></div>
 </div>
@@ -242,6 +244,25 @@
   <button class="btn" id="editor-close" onclick="closeEditor()">Close</button>
 </div>
 
+<!-- SAVE PRESET MODAL -->
+<div id="save-preset-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;align-items:center;justify-content:center;">
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:20px;width:340px;display:flex;flex-direction:column;gap:12px;">
+    <h3 style="font-size:13px;font-weight:600">Save as Preset</h3>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <label style="font-size:11px;color:var(--text-dim)">Name</label>
+      <input id="preset-name-input" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:5px 8px;font:inherit;font-size:12px" placeholder="My preset" onkeydown="if(event.key==='Enter')confirmSavePreset()">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <label style="font-size:11px;color:var(--text-dim)">Description (optional)</label>
+      <input id="preset-desc-input" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:5px 8px;font:inherit;font-size:12px" placeholder="What's this for?">
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
+      <button class="btn" onclick="document.getElementById('save-preset-overlay').style.display='none'">Cancel</button>
+      <button class="btn primary" onclick="confirmSavePreset()">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- SCHEMES MODAL -->
 <div id="schemes-overlay">
   <div id="schemes-modal">
@@ -250,6 +271,7 @@
       <div class="scheme-tabs">
         <button class="scheme-tab active" id="tab-widget" onclick="switchTab('widget')">Widget Presets</button>
         <button class="scheme-tab" id="tab-color" onclick="switchTab('color')">Color Themes</button>
+        <button class="scheme-tab" id="tab-my" onclick="switchTab('my')">My Presets</button>
       </div>
       <input id="schemes-search" type="text" placeholder="Filter…" oninput="rebuildSchemes()">
       <button class="btn" onclick="closeSchemes()">Close</button>
@@ -277,10 +299,16 @@ const COLOR_HEX = {
 let settings = null;
 let nextId = 1;
 let activeChip = null; // { lineIdx, chipIdx, widget }
+let userPresets = [];
+
+function loadUserPresets() {
+  fetch("/api/presets").then(r => r.json()).then(data => { userPresets = data; });
+}
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 buildPalette();
 loadSettings();
+loadUserPresets();
 
 function uid() { return String(nextId++); }
 
@@ -579,6 +607,11 @@ function saveSettings() {
   .catch(e => setStatus("Save failed: " + e, "err"));
 }
 
+function quitApp() {
+  fetch("/api/shutdown", { method: "POST" }).catch(() => {});
+  document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#888;font:13px monospace">Server stopped. Close this tab.</div>';
+}
+
 // Ctrl+S to save
 document.addEventListener("keydown", e => {
   if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); saveSettings(); }
@@ -588,10 +621,10 @@ document.addEventListener("keydown", e => {
 // ── Schemes ──────────────────────────────────────────────────────────────────
 let currentTab = "widget";
 
-function openSchemes() {
+function openSchemes(tab) {
   document.getElementById("schemes-search").value = "";
   document.getElementById("schemes-overlay").classList.add("open");
-  rebuildSchemes();
+  if (tab) switchTab(tab); else rebuildSchemes();
 }
 function closeSchemes() {
   document.getElementById("schemes-overlay").classList.remove("open");
@@ -604,8 +637,9 @@ function switchTab(tab) {
   currentTab = tab;
   document.getElementById("tab-widget").classList.toggle("active", tab === "widget");
   document.getElementById("tab-color").classList.toggle("active", tab === "color");
+  document.getElementById("tab-my").classList.toggle("active", tab === "my");
   const grid = document.getElementById("schemes-grid");
-  grid.className = tab === "widget" ? "widget-mode" : "color-mode";
+  grid.className = tab === "widget" ? "widget-mode" : tab === "my" ? "widget-mode" : "color-mode";
   rebuildSchemes();
 }
 
@@ -617,12 +651,86 @@ function rebuildSchemes() {
       (s.tags || []).some(t => t.includes(q))
     ) : WIDGET_SCHEMES;
     buildWidgetGrid(list);
+  } else if (currentTab === "my") {
+    const list = q ? userPresets.filter(s =>
+      s.name.toLowerCase().includes(q) || (s.desc || "").toLowerCase().includes(q)
+    ) : userPresets;
+    buildMyPresetsGrid(list);
   } else {
     const list = q ? COLOR_SCHEMES.filter(s =>
       s.name.toLowerCase().includes(q) || s.desc.toLowerCase().includes(q)
     ) : COLOR_SCHEMES;
     buildColorGrid(list);
   }
+}
+
+function buildMyPresetsGrid(list) {
+  const grid = document.getElementById("schemes-grid");
+  grid.innerHTML = "";
+  if (!list.length) {
+    grid.innerHTML = '<p style="color:var(--text-dim);padding:16px;grid-column:1/-1">No saved presets yet. Use "Save Preset" in the toolbar to add one.</p>';
+    return;
+  }
+  for (const s of list) {
+    const card = document.createElement("div");
+    card.className = "scheme-card";
+    card.style.position = "relative";
+    const preview = (s.lines || []).map(line => {
+      const pills = line.filter(w => w.type !== "flex-separator" && w.type !== "separator")
+        .map(w => `<span class="scheme-widget-pill" style="color:${COLOR_HEX[w.color]||'#aaa'};border-color:${COLOR_HEX[w.color]||'#555'}44">${w.type}</span>`)
+        .join("");
+      return `<div class="scheme-line-preview">${pills}</div>`;
+    }).join("");
+    card.innerHTML = `
+      <button title="Delete" onclick="deleteUserPreset(${JSON.stringify(s.name)},event)"
+        style="position:absolute;top:6px;right:6px;background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;line-height:1;padding:2px 4px"
+        onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-dim)'">✕</button>
+      <h3>${s.name}</h3><p>${s.desc || ""}</p>
+      <div class="scheme-preview" style="margin-top:6px">${preview}</div>`;
+    card.addEventListener("click", e => { if (!e.target.closest("button")) applyWidgetScheme(s); });
+    grid.appendChild(card);
+  }
+}
+
+function saveCurrentAsPreset() {
+  if (!settings) return;
+  document.getElementById("preset-name-input").value = "";
+  document.getElementById("preset-desc-input").value = "";
+  document.getElementById("save-preset-overlay").style.display = "flex";
+  setTimeout(() => document.getElementById("preset-name-input").focus(), 50);
+}
+
+function confirmSavePreset() {
+  const name = document.getElementById("preset-name-input").value.trim();
+  if (!name) { document.getElementById("preset-name-input").focus(); return; }
+  const desc = document.getElementById("preset-desc-input").value.trim();
+  const lines = settings.lines.map(line => line.map(w => {
+    const out = { type: w.type };
+    if (w.color) out.color = w.color;
+    if (w.metadata) out.metadata = w.metadata;
+    return out;
+  }));
+  fetch("/api/presets", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, desc, lines })
+  }).then(r => r.json()).then(() => {
+    document.getElementById("save-preset-overlay").style.display = "none";
+    fetch("/api/presets").then(r => r.json()).then(data => {
+      userPresets = data;
+      setStatus(`Preset "${name}" saved`, "ok");
+    });
+  });
+}
+
+function deleteUserPreset(name, e) {
+  e.stopPropagation();
+  if (!confirm(`Delete preset "${name}"?`)) return;
+  fetch(`/api/presets/${encodeURIComponent(name)}`, { method: "DELETE" })
+    .then(r => r.json()).then(() => {
+      userPresets = userPresets.filter(p => p.name !== name);
+      rebuildSchemes();
+    });
 }
 
 function buildWidgetGrid(list) {

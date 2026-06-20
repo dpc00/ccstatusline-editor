@@ -1,11 +1,26 @@
 import json
 import os
+import threading
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify
 
 app = Flask(__name__)
 
 SETTINGS_PATH = Path.home() / ".config" / "ccstatusline" / "settings.json"
+USER_PRESETS_PATH = Path.home() / ".config" / "ccstatusline" / "user_presets.json"
+
+
+def load_user_presets():
+    if not USER_PRESETS_PATH.exists():
+        return []
+    with open(USER_PRESETS_PATH) as f:
+        return json.load(f)
+
+
+def save_user_presets(presets):
+    USER_PRESETS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(USER_PRESETS_PATH, "w") as f:
+        json.dump(presets, f, indent=2)
 
 WIDGET_TYPES = [
     {"type": "model",                    "group": "AI"},
@@ -482,6 +497,36 @@ def save_settings():
 @app.route("/api/widgets")
 def get_widgets():
     return jsonify(WIDGET_TYPES)
+
+
+@app.route("/api/presets", methods=["GET"])
+def get_presets():
+    return jsonify(load_user_presets())
+
+
+@app.route("/api/presets", methods=["POST"])
+def add_preset():
+    preset = request.get_json()
+    if not preset or not preset.get("name"):
+        return jsonify({"error": "name required"}), 400
+    presets = load_user_presets()
+    presets = [p for p in presets if p["name"] != preset["name"]]
+    presets.insert(0, preset)
+    save_user_presets(presets)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/presets/<name>", methods=["DELETE"])
+def delete_preset(name):
+    presets = [p for p in load_user_presets() if p["name"] != name]
+    save_user_presets(presets)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/shutdown", methods=["POST"])
+def shutdown():
+    threading.Timer(0.2, lambda: os._exit(0)).start()
+    return jsonify({"ok": True})
 
 
 if __name__ == "__main__":
