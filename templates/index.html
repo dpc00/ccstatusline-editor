@@ -208,7 +208,7 @@
         <option value="">none</option>
         <option value="|" selected>|</option>
         <option value=" ">space</option>
-        <option value="•">•</option>
+        <option value=" • ">•</option>
         <option value="─">─</option>
         <option value="›">›</option>
       </select>
@@ -545,12 +545,17 @@ function renderMetaFields(widget) {
     d.className = "field";
     d.innerHTML = `<label>${f.label}</label>`;
     const input = document.createElement(f.multi ? "textarea" : "input");
-    input.value = meta[f.key] || "";
+    input.value = (f.direct ? activeChip.widget[f.key] : meta[f.key]) || "";
     input.placeholder = f.placeholder || "";
     input.addEventListener("change", () => {
-      if (!activeChip.widget.metadata) activeChip.widget.metadata = {};
-      if (input.value) activeChip.widget.metadata[f.key] = input.value;
-      else delete activeChip.widget.metadata[f.key];
+      if (f.direct) {
+        if (input.value) activeChip.widget[f.key] = input.value;
+        else delete activeChip.widget[f.key];
+      } else {
+        if (!activeChip.widget.metadata) activeChip.widget.metadata = {};
+        if (input.value) activeChip.widget.metadata[f.key] = input.value;
+        else delete activeChip.widget.metadata[f.key];
+      }
       renderAll();
     });
     d.appendChild(input);
@@ -563,7 +568,7 @@ function metaFieldsFor(type) {
   if (type === "custom-symbol")  return [{ key: "symbol", label: "Symbol", placeholder: "◆" }];
   if (type === "custom-command") return [{ key: "command", label: "Command", placeholder: "echo hi", multi: true }];
   if (type === "link")           return [{ key: "text", label: "Link text", placeholder: "link" }, { key: "url", label: "URL", placeholder: "https://…" }];
-  if (type === "separator")      return [{ key: "character", label: "Character", placeholder: "|" }];
+  if (type === "separator")      return [{ key: "character", label: "Character", placeholder: "|", direct: true }];
   if (type === "compaction-counter") return [{ key: "hideZero", label: "Hide when zero (true/false)", placeholder: "true" }];
   return [];
 }
@@ -707,6 +712,7 @@ function confirmSavePreset() {
   const lines = settings.lines.map(line => line.map(w => {
     const out = { type: w.type };
     if (w.color) out.color = w.color;
+    if (w.character) out.character = w.character;
     if (w.metadata) out.metadata = w.metadata;
     return out;
   }));
@@ -804,16 +810,17 @@ function insertSeparators() {
   if (!settings) return;
   const char = document.getElementById("sep-char").value;
   for (let li = 0; li < settings.lines.length; li++) {
-    const line = settings.lines[li];
+    // Strip existing plain separators, keep flex-separators
+    const stripped = settings.lines[li].filter(w => w.type !== "separator");
     const withSeps = [];
-    for (let i = 0; i < line.length; i++) {
-      withSeps.push(line[i]);
-      const notLast = i < line.length - 1;
-      const nextIsSep = notLast && (line[i+1].type === "separator" || line[i+1].type === "flex-separator");
-      const thisIsSep = line[i].type === "separator" || line[i].type === "flex-separator";
-      if (notLast && !nextIsSep && !thisIsSep) {
+    for (let i = 0; i < stripped.length; i++) {
+      withSeps.push(stripped[i]);
+      const notLast = i < stripped.length - 1;
+      const nextIsFlex = notLast && stripped[i+1].type === "flex-separator";
+      const thisIsFlex = stripped[i].type === "flex-separator";
+      if (notLast && !nextIsFlex && !thisIsFlex) {
         const sep = { id: String(nextId++), type: "separator" };
-        if (char) sep.metadata = { character: char };
+        if (char) sep.character = char;
         withSeps.push(sep);
       }
     }
