@@ -531,6 +531,15 @@ def shutdown():
 
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="Visual editor for ccstatusline config")
+    parser.add_argument("--config", metavar="PATH", help="Path to settings.json (default: ~/.config/ccstatusline/settings.json)")
+    args = parser.parse_args()
+
+    global SETTINGS_PATH
+    if args.config:
+        SETTINGS_PATH = Path(args.config)
+
     url = "http://127.0.0.1:5199"
     print(f"ccstatusline-editor: {url}")
     print(f"Editing: {SETTINGS_PATH}")
