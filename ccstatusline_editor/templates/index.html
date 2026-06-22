@@ -204,9 +204,9 @@
     <h1>ccstatusline editor</h1>
     <span id="save-status"></span>
     <label style="font-size:11px;color:var(--text-dim)">Sep
-      <select id="sep-char" style="margin-left:4px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:2px 4px;font:inherit;font-size:12px">
-        <option value="">none</option>
-        <option value="|" selected>|</option>
+      <select id="sep-char" onchange="if(this.value) insertSeparators()" style="margin-left:4px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:2px 4px;font:inherit;font-size:12px">
+        <option value="" selected>none</option>
+        <option value="|">|</option>
         <option value=" ">space</option>
         <option value=" • ">•</option>
         <option value="─">─</option>
@@ -319,8 +319,21 @@ function loadSettings() {
       settings = data;
       recalcNextId();
       renderAll();
+      syncSepChar();
     })
     .catch(e => setStatus("Failed to load: " + e, "err"));
+}
+
+function syncSepChar() {
+  const sel = document.getElementById("sep-char");
+  let found = "";
+  outer: for (const line of settings.lines) {
+    for (const w of line) {
+      if (w.type === "separator" && w.character) { found = w.character; break outer; }
+    }
+  }
+  const vals = Array.from(sel.options).map(o => o.value);
+  sel.value = vals.includes(found) ? found : "";
 }
 
 function recalcNextId() {
