@@ -181,6 +181,16 @@ SCHEMES = [
     scheme("Retro Terminal", "Old-school amber phosphor",         "yellow", "yellow", "yellow", "yellow", "yellow", "yellow", "yellow", "yellow", "yellow", "yellow", "yellow", "yellow"),
     scheme("Hacker",         "Green on black, old hacker",        "green",  "green",  "green",  "green",  "green",  "yellow", "green",  "green",  "green",  "green",  "white",  "green"),
     scheme("Blueprint",      "Engineer blue-on-white feel",       "blue",   "blue",   "blue",   "cyan",   "blue",   "blue",   "blue",   "blue",   "blue",   "blue",   "white",  "blue"),
+    scheme("Acid",           "Hyper-saturated neon green and yellow",      "green",   "yellow",  "green",   "yellow",  "green",   "yellow",  "green",   "yellow",  "green",   "yellow",  "white",   "green"),
+    scheme("Vaporwave",      "Aesthetic magenta, cyan and blue",           "magenta", "cyan",    "magenta", "cyan",    "blue",    "magenta", "cyan",    "magenta", "cyan",    "blue",    "white",   "magenta"),
+    scheme("Solar Flare",    "Red-hot burst of red and yellow energy",     "red",     "yellow",  "red",     "yellow",  "red",     "yellow",  "yellow",  "red",     "red",     "yellow",  "white",   "yellow"),
+    scheme("Noctiluca",      "Bioluminescent sea — cyan and green glow",   "cyan",    "green",   "white",   "cyan",    "green",   "cyan",    "green",   "cyan",    "green",   "cyan",    "white",   "cyan"),
+    scheme("Tundra",         "Stark arctic white and blue",                "white",   "blue",    "white",   "blue",    "white",   "blue",    "white",   "blue",    "white",   "blue",    "white",   "blue"),
+    scheme("Savanna",        "Earthy yellows and greens of the plains",    "yellow",  "green",   "yellow",  "green",   "yellow",  "green",   "green",   "yellow",  "green",   "yellow",  "white",   "yellow"),
+    scheme("Midnight",       "Deep navy night sky with magenta stars",     "magenta", "blue",    "blue",    "blue",    "blue",    "blue",    "blue",    "blue",    "cyan",    "blue",    "white",   "magenta"),
+    scheme("Flamingo",       "Tropical magenta and red plumage",           "magenta", "red",     "magenta", "red",     "magenta", "white",   "magenta", "red",     "magenta", "red",     "white",   "magenta"),
+    scheme("Spectrum",       "Rainbow — each group its own hue",           "red",     "yellow",  "green",   "cyan",    "blue",    "magenta", "red",     "yellow",  "green",   "cyan",    "white",   "magenta"),
+    scheme("Holographic",    "Shifting prismatic colours group by group",  "cyan",    "magenta", "yellow",  "green",   "blue",    "red",     "cyan",    "magenta", "yellow",  "green",   "white",   "magenta"),
 ]
 
 
