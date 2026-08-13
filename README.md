@@ -25,8 +25,8 @@ Instead of hand-editing the JSON config, open this in your browser and drag, dro
 ## Install & run
 
 ```bash
-pip install flask
-python app.py
+pip install ccstatusline-editor
+ccstatusline-editor
 ```
 
 Then open http://localhost:5199 in your browser.
