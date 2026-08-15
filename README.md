@@ -57,39 +57,6 @@ pip install -e .
 4. **+ Seps (toolbar)** — select a separator character, click to insert between all widgets
 5. **Save / Ctrl+S** — writes back to your ccstatusline settings file
 
-## Sublime Text integration
-
-This repo doubles as a Sublime Text package: symlink it into your Packages directory and
-you get a command-palette entry and keybinding that launch the editor and open it in your
-browser.
-
-```bash
-# macOS
-ln -s "$(pwd)" "$HOME/Library/Application Support/Sublime Text/Packages/ccstatusline-editor"
-
-# Linux
-ln -s "$(pwd)" "$HOME/.config/sublime-text/Packages/ccstatusline-editor"
-```
-
-```powershell
-# Windows (run as Administrator, or enable Developer Mode for unprivileged symlinks)
-New-Item -ItemType SymbolicLink -Path "$env:APPDATA\Sublime Text\Packages\ccstatusline-editor" -Target (Get-Location)
-```
-
-Requires `ccstatusline-editor` to already be installed (`pip install ccstatusline-editor` or
-the editable install above) and on your `PATH`.
-
-- **Command palette** — "CC Statusline Editor"
-- **Keybinding** — <kbd>Ctrl+Alt+L</kbd>
-- To point the launched editor at a non-default config path, add to your
-  `Preferences.sublime-settings`:
-
-  ```json
-  {
-      "ccstatusline_config_path": "/path/to/settings.json"
-  }
-  ```
-
 ## License
 
 MIT

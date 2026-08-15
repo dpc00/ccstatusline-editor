@@ -286,6 +286,7 @@ const WIDGET_TYPES = {{ widget_types | tojson }};
 const COLOR_SCHEMES = {{ color_schemes | tojson }};
 const WIDGET_SCHEMES = {{ widget_schemes | tojson }};
 const GROUPS = {{ groups | tojson }};
+const WIDGET_OPTIONS = {{ widget_options | tojson }};
 
 // build type→group lookup
 const TYPE_GROUP = {};
@@ -557,20 +558,47 @@ function renderMetaFields(widget) {
     const d = document.createElement("div");
     d.className = "field";
     d.innerHTML = `<label>${f.label}</label>`;
-    const input = document.createElement(f.multi ? "textarea" : "input");
-    input.value = (f.direct ? activeChip.widget[f.key] : meta[f.key]) || "";
-    input.placeholder = f.placeholder || "";
-    input.addEventListener("change", () => {
+
+    const getVal = () => (f.direct ? activeChip.widget[f.key] : meta[f.key]);
+    const setVal = (val) => {
+      // val === "" clears the field, reverting the widget to ccstatusline's
+      // own default rather than writing an explicit "empty" value.
       if (f.direct) {
-        if (input.value) activeChip.widget[f.key] = input.value;
+        if (val) activeChip.widget[f.key] = val;
         else delete activeChip.widget[f.key];
       } else {
         if (!activeChip.widget.metadata) activeChip.widget.metadata = {};
-        if (input.value) activeChip.widget.metadata[f.key] = input.value;
+        if (val) activeChip.widget.metadata[f.key] = val;
         else delete activeChip.widget.metadata[f.key];
       }
       renderAll();
-    });
+    };
+
+    let input;
+    if (f.kind === "bool") {
+      // ccstatusline stores flags as the literal strings "true"/"false"
+      // (isMetadataFlagEnabled checks === "true"), never a JSON boolean.
+      input = document.createElement("input");
+      input.type = "checkbox";
+      input.checked = getVal() === "true";
+      input.addEventListener("change", () => setVal(input.checked ? "true" : "false"));
+    } else if (f.kind === "select") {
+      input = document.createElement("select");
+      for (const opt of f.options) {
+        const o = document.createElement("option");
+        o.value = opt.value;
+        o.textContent = opt.label;
+        input.appendChild(o);
+      }
+      input.value = getVal() || "";
+      input.addEventListener("change", () => setVal(input.value));
+    } else {
+      input = document.createElement(f.multi ? "textarea" : "input");
+      if (f.kind === "number") input.type = "number";
+      input.value = getVal() || "";
+      input.placeholder = f.placeholder || "";
+      input.addEventListener("change", () => setVal(input.value));
+    }
     d.appendChild(input);
     container.appendChild(d);
   }
@@ -582,8 +610,7 @@ function metaFieldsFor(type) {
   if (type === "custom-command") return [{ key: "command", label: "Command", placeholder: "echo hi", multi: true }];
   if (type === "link")           return [{ key: "text", label: "Link text", placeholder: "link" }, { key: "url", label: "URL", placeholder: "https://…" }];
   if (type === "separator")      return [{ key: "character", label: "Character", placeholder: "|", direct: true }];
-  if (type === "compaction-counter") return [{ key: "hideZero", label: "Hide when zero (true/false)", placeholder: "true" }];
-  return [];
+  return WIDGET_OPTIONS[type] || [];
 }
 
 function closeEditor() {

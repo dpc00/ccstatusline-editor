@@ -114,6 +114,123 @@ WIDGET_TYPES = [
 
 GROUPS = ["AI","Context","Session","Tokens","Speed","Usage","Git","Git Origin","Worktree","Jujutsu","System","Custom"]
 
+
+# -- per-widget metadata options ---------------------------------------------
+#
+# ccstatusline's TUI editor exposes a bunch of per-widget interactive options
+# (display mode, invert, date formatting, ...) through custom keybinds that
+# this web editor previously had no equivalent for -- only a widget's color
+# and a couple of hardcoded text fields (custom-text/symbol/command, link,
+# separator) were editable; everything else needed hand-editing settings.json.
+#
+# These field specs were reverse-engineered from the installed ccstatusline
+# package (node_modules/ccstatusline/dist/ccstatusline.js, v2.2.22) -- each
+# widget's getCustomKeybinds()/handleEditorAction() pair defines an exact
+# metadata key and value convention (booleans are stored as the literal
+# strings "true"/"false", not JSON booleans -- see isMetadataFlagEnabled()/
+# toggleMetadataFlag() in that file). Getting the key names and value
+# conventions wrong silently produces a widget that ccstatusline ignores.
+
+def bool_field(key, label):
+    return {"key": key, "label": label, "kind": "bool"}
+
+
+def select_field(key, label, options):
+    return {"key": key, "label": label, "kind": "select",
+            "options": [{"value": v, "label": l} for v, l in options]}
+
+
+def text_field(key, label, placeholder="", direct=False):
+    return {"key": key, "label": label, "kind": "text", "placeholder": placeholder, "direct": direct}
+
+
+def number_field(key, label, placeholder=""):
+    return {"key": key, "label": label, "kind": "number", "placeholder": placeholder}
+
+
+DISPLAY_MODE_OPTIONS = [
+    ("", "Number / countdown"),
+    ("progress", "Progress bar (long)"),
+    ("progress-short", "Progress bar (short)"),
+    ("slider", "Slider"),
+    ("slider-only", "Slider only"),
+]
+
+CONTEXT_DISPLAY_MODE_OPTIONS = [
+    ("", "Number only"),
+    ("slider", "Slider"),
+    ("slider-only", "Slider only"),
+]
+
+
+def usage_percent_fields(extra=None):
+    """Cache-hit-rate-style percentage widgets: bar/slider display mode,
+    invert, time cursor. No compact/date -- those are timer-only."""
+    fields = [
+        select_field("display", "Display mode", DISPLAY_MODE_OPTIONS),
+        bool_field("invert", "Invert (bar/slider modes)"),
+        bool_field("cursor", "Show time cursor (bar/slider modes)"),
+    ]
+    return fields + (extra or [])
+
+
+def usage_timer_fields(include_date=False, include_weekday=False, include_hours_only=False):
+    """block-timer / reset-timer / weekly-reset-timer: everything
+    usage_percent_fields has, plus compact number mode, and -- only for the
+    two widgets that support it -- absolute-date display with hour12/
+    timezone/locale (and weekday/hours-only, weekly-reset-timer only)."""
+    fields = [
+        select_field("display", "Display mode", DISPLAY_MODE_OPTIONS),
+        bool_field("compact", "Compact (number mode)"),
+        bool_field("invert", "Invert (bar/slider modes)"),
+        bool_field("cursor", "Show time cursor (bar/slider modes)"),
+    ]
+    if include_date:
+        fields.append(bool_field("absolute", "Show absolute date instead of countdown"))
+        fields.append(bool_field("hour12", "12-hour clock (date mode)"))
+        if include_weekday:
+            fields.append(bool_field("weekday", "Include weekday (date mode)"))
+        fields.append(text_field("timezone", "Timezone (date mode)", "e.g. America/New_York -- blank = UTC"))
+        fields.append(text_field("locale", "Locale (date mode)", "e.g. en-GB -- blank = default"))
+    if include_hours_only:
+        fields.append(bool_field("hours", "Hours only, no days (countdown mode)"))
+    return fields
+
+
+WIDGET_OPTIONS = {
+    "cache-hit-rate": [bool_field("cacheScopeSession", "Session only (not all-time)"), bool_field("hideWhenEmpty", "Hide when empty")],
+    "cache-read":     [bool_field("cacheScopeSession", "Session only (not all-time)"), bool_field("hideWhenEmpty", "Hide when empty")],
+    "cache-write":    [bool_field("cacheScopeSession", "Session only (not all-time)"), bool_field("hideWhenEmpty", "Hide when empty")],
+
+    "context-percentage":        [bool_field("inverse", "Show used instead of remaining"), select_field("display", "Display mode", CONTEXT_DISPLAY_MODE_OPTIONS)],
+    "context-percentage-usable": [bool_field("inverse", "Show used instead of remaining"), select_field("display", "Display mode", CONTEXT_DISPLAY_MODE_OPTIONS)],
+
+    "block-timer":        usage_timer_fields(),
+    "reset-timer":        usage_timer_fields(include_date=True),
+    "weekly-reset-timer": usage_timer_fields(include_date=True, include_weekday=True, include_hours_only=True),
+
+    "session-usage":       usage_percent_fields(),
+    "weekly-usage":        usage_percent_fields(),
+    "weekly-sonnet-usage": usage_percent_fields(),
+    "weekly-opus-usage":   usage_percent_fields(),
+    "extra-usage-utilization": usage_percent_fields([bool_field("hideIfDisabled", "Hide if extra usage is disabled")]),
+
+    "skills": [
+        select_field("mode", "View", [("current", "last used"), ("count", "total count"), ("list", "unique list")]),
+        bool_field("hideWhenEmpty", "Hide when empty"),
+        number_field("listLimit", "List limit (list view only)", "e.g. 5"),
+    ],
+
+    "compaction-counter": [
+        select_field("format", "Format", [("icon-space-number", "icon + number"), ("text-and-number", "text + number"), ("number", "number only")]),
+        bool_field("nerdFont", "Nerd Font icon (icon + number format only)"),
+        bool_field("showTriggers", "Split by trigger"),
+        bool_field("showReclaimed", "Show tokens reclaimed"),
+        bool_field("hideZero", "Hide when zero"),
+        text_field("character", "Symbol override", "leave blank for default", direct=True),
+    ],
+}
+
 def scheme(name, desc, ai, ctx, ses, tok, spd, use, git, gito, wt, jj, sys_, cus):
     return {"name": name, "desc": desc, "colors": {
         "AI": ai, "Context": ctx, "Session": ses, "Tokens": tok,
@@ -485,7 +602,7 @@ WIDGET_SCHEMES = [
 
 @app.route("/")
 def index():
-    return render_template("index.html", widget_types=WIDGET_TYPES, color_schemes=SCHEMES, widget_schemes=WIDGET_SCHEMES, groups=GROUPS)
+    return render_template("index.html", widget_types=WIDGET_TYPES, color_schemes=SCHEMES, widget_schemes=WIDGET_SCHEMES, groups=GROUPS, widget_options=WIDGET_OPTIONS)
 
 
 @app.route("/api/settings", methods=["GET"])
