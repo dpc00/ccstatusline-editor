@@ -27,6 +27,7 @@ WIDGET_TYPES = [
     {"type": "model",                    "group": "AI"},
     {"type": "output-style",             "group": "AI"},
     {"type": "thinking-effort",          "group": "AI"},
+    {"type": "sandbox-status",           "group": "AI"},
     {"type": "skills",                   "group": "AI"},
     {"type": "version",                  "group": "AI"},
     {"type": "context-percentage",       "group": "Context"},
@@ -39,6 +40,7 @@ WIDGET_TYPES = [
     {"type": "session-clock",            "group": "Session"},
     {"type": "session-name",             "group": "Session"},
     {"type": "session-usage",            "group": "Session"},
+    {"type": "cache-timer",              "group": "Session"},
     {"type": "block-timer",              "group": "Session"},
     {"type": "reset-timer",              "group": "Session"},
     {"type": "tokens-input",             "group": "Tokens"},
@@ -54,6 +56,7 @@ WIDGET_TYPES = [
     {"type": "weekly-usage",             "group": "Usage"},
     {"type": "weekly-sonnet-usage",      "group": "Usage"},
     {"type": "weekly-opus-usage",        "group": "Usage"},
+    {"type": "fable-weekly-usage",       "group": "Usage"},
     {"type": "weekly-reset-timer",       "group": "Usage"},
     {"type": "extra-usage-utilization",  "group": "Usage"},
     {"type": "extra-usage-remaining",    "group": "Usage"},
@@ -75,6 +78,7 @@ WIDGET_TYPES = [
     {"type": "git-sha",                  "group": "Git"},
     {"type": "git-root-dir",             "group": "Git"},
     {"type": "git-review",               "group": "Git"},
+    {"type": "git-ci-status",            "group": "Git"},
     {"type": "git-worktree",             "group": "Git"},
     {"type": "git-origin-owner",         "group": "Git Origin"},
     {"type": "git-origin-repo",          "group": "Git Origin"},
@@ -148,6 +152,27 @@ def number_field(key, label, placeholder=""):
     return {"key": key, "label": label, "kind": "number", "placeholder": placeholder}
 
 
+def json_bool_field(key, label):
+    """WidgetItem JSON boolean (rawValue, hide). Omitted means false."""
+    return {"key": key, "label": label, "kind": "json-bool"}
+
+
+COMMON_WIDGET_FIELDS = [
+    json_bool_field("rawValue", "Raw value (no label)"),
+    {
+        "key": "merge",
+        "label": "Merge with next",
+        "kind": "item-select",
+        "options": [
+            {"value": "", "label": "Off"},
+            {"value": "true", "label": "Merge"},
+            {"value": "no-padding", "label": "Merge, no padding"},
+        ],
+    },
+    json_bool_field("hide", "Hide widget"),
+]
+
+
 DISPLAY_MODE_OPTIONS = [
     ("", "Number / countdown"),
     ("progress", "Progress bar (long)"),
@@ -213,7 +238,32 @@ WIDGET_OPTIONS = {
     "weekly-usage":        usage_percent_fields(),
     "weekly-sonnet-usage": usage_percent_fields(),
     "weekly-opus-usage":   usage_percent_fields(),
+    "fable-weekly-usage":  usage_percent_fields(),
     "extra-usage-utilization": usage_percent_fields([bool_field("hideIfDisabled", "Hide if extra usage is disabled")]),
+
+    "sandbox-status": [
+        select_field("format", "Format", [
+            ("", "Glyph (SB: ●/○)"),
+            ("text", "Text (SB: ON/OFF)"),
+            ("word", "Word (Sandbox: ON/OFF)"),
+        ]),
+        bool_field("nerdFont", "Nerd Font lock icons (glyph format)"),
+    ],
+    "git-ci-status": [
+        bool_field("hideNoGit", "Hide when not in a git repo"),
+    ],
+    "cache-timer": [
+        select_field("ttlSeconds", "TTL", [
+            ("", "5 minutes (default)"),
+            ("3600", "1 hour"),
+        ]),
+        bool_field("hideWhenEmpty", "Hide when empty"),
+        text_field("symbolHot", "Glyph: working"),
+        text_field("symbolFresh", "Glyph: fresh"),
+        text_field("symbolDraining", "Glyph: draining"),
+        text_field("symbolUrgent", "Glyph: urgent"),
+        text_field("symbolCold", "Glyph: cold"),
+    ],
 
     "skills": [
         select_field("mode", "View", [("current", "last used"), ("count", "total count"), ("list", "unique list")]),
@@ -602,7 +652,15 @@ WIDGET_SCHEMES = [
 
 @app.route("/")
 def index():
-    return render_template("index.html", widget_types=WIDGET_TYPES, color_schemes=SCHEMES, widget_schemes=WIDGET_SCHEMES, groups=GROUPS, widget_options=WIDGET_OPTIONS)
+    return render_template(
+        "index.html",
+        widget_types=WIDGET_TYPES,
+        color_schemes=SCHEMES,
+        widget_schemes=WIDGET_SCHEMES,
+        groups=GROUPS,
+        widget_options=WIDGET_OPTIONS,
+        widget_common=COMMON_WIDGET_FIELDS,
+    )
 
 
 @app.route("/api/settings", methods=["GET"])

@@ -9,7 +9,7 @@ Instead of hand-editing the JSON config, open this in your browser and drag, dro
 ## Features
 
 - **Drag-and-drop** widgets within and between status lines
-- **Widget palette** — all 85+ widget types grouped and searchable
+- **Widget palette** — all 89 widget types grouped and searchable (includes sandbox status, git CI, cache timer, and weekly Fable usage)
 - **30 Widget Presets** — curated selections for common workflows:
   - Context Watch, Cost Monitor, Project Orientation, Git Full Picture, Token Economy, Focus Mode, Performance Audit, and more
 - **68 Color Themes** — named palettes (Ocean, Dracula, Gruvbox, Monokai, Tokyo Night, …)
@@ -52,7 +52,7 @@ pip install -e .
 ## Usage
 
 1. **Palette (left)** — drag a widget type onto any line, or double-click to add to the last line
-2. **Lines (centre)** — click a chip to edit its color and metadata; drag to reorder; ✕ to remove
+2. **Lines (centre)** — click a chip to edit color, raw-value/merge/hide, and metadata; drag to reorder; ✕ to remove
 3. **Schemes (toolbar)** — choose a widget preset or color theme and apply in one click
 4. **+ Seps (toolbar)** — select a separator character, click to insert between all widgets
 5. **Save / Ctrl+S** — writes back to your ccstatusline settings file

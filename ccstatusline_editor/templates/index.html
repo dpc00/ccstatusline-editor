@@ -287,6 +287,7 @@ const COLOR_SCHEMES = {{ color_schemes | tojson }};
 const WIDGET_SCHEMES = {{ widget_schemes | tojson }};
 const GROUPS = {{ groups | tojson }};
 const WIDGET_OPTIONS = {{ widget_options | tojson }};
+const WIDGET_COMMON = {{ widget_common | tojson }};
 
 // build type→group lookup
 const TYPE_GROUP = {};
@@ -486,6 +487,7 @@ function renderChip(widget, li, wi) {
   chip.dataset.chipIdx = wi;
 
   chip.innerHTML = `<span class="chip-label">${label}</span><span class="chip-x" title="Remove">×</span>`;
+  if (widget.hide) chip.style.opacity = "0.4";
 
   chip.querySelector(".chip-x").addEventListener("click", e => {
     e.stopPropagation();
@@ -494,9 +496,7 @@ function renderChip(widget, li, wi) {
     renderAll();
   });
 
-  if (!isSep && !isFlex) {
-    chip.addEventListener("click", () => openEditor(widget, li, wi));
-  }
+  chip.addEventListener("click", () => openEditor(widget, li, wi));
 
   return chip;
 }
@@ -539,69 +539,86 @@ function setColor(color) {
   renderAll();
 }
 
+function appendField(container, f, widget) {
+  const meta = widget.metadata || {};
+  const d = document.createElement("div");
+  d.className = "field";
+  d.innerHTML = `<label>${f.label}</label>`;
+
+  const getVal = () => {
+    if (f.kind === "json-bool") return widget[f.key] === true ? "true" : "";
+    if (f.kind === "item-select") {
+      const v = widget[f.key];
+      if (v === true) return "true";
+      return v || "";
+    }
+    return f.direct ? widget[f.key] : meta[f.key];
+  };
+  const setVal = (val) => {
+    if (f.kind === "json-bool") {
+      if (val === true || val === "true") activeChip.widget[f.key] = true;
+      else delete activeChip.widget[f.key];
+    } else if (f.kind === "item-select") {
+      if (!val) delete activeChip.widget[f.key];
+      else if (val === "true") activeChip.widget[f.key] = true;
+      else activeChip.widget[f.key] = val;
+    } else if (f.direct) {
+      if (val) activeChip.widget[f.key] = val;
+      else delete activeChip.widget[f.key];
+    } else {
+      if (!activeChip.widget.metadata) activeChip.widget.metadata = {};
+      if (val) activeChip.widget.metadata[f.key] = val;
+      else delete activeChip.widget.metadata[f.key];
+      if (Object.keys(activeChip.widget.metadata).length === 0) delete activeChip.widget.metadata;
+    }
+    renderAll();
+  };
+
+  let input;
+  if (f.kind === "bool" || f.kind === "json-bool") {
+    input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = f.kind === "json-bool" ? widget[f.key] === true : getVal() === "true";
+    input.addEventListener("change", () => setVal(input.checked ? "true" : ""));
+  } else if (f.kind === "select" || f.kind === "item-select") {
+    input = document.createElement("select");
+    for (const opt of f.options) {
+      const o = document.createElement("option");
+      o.value = opt.value;
+      o.textContent = opt.label;
+      input.appendChild(o);
+    }
+    input.value = getVal() || "";
+    input.addEventListener("change", () => setVal(input.value));
+  } else {
+    input = document.createElement(f.multi ? "textarea" : "input");
+    if (f.kind === "number") input.type = "number";
+    input.value = getVal() || "";
+    input.placeholder = f.placeholder || "";
+    input.addEventListener("change", () => setVal(input.value));
+  }
+  d.appendChild(input);
+  container.appendChild(d);
+}
+
 function renderMetaFields(widget) {
   const container = document.getElementById("ed-meta-fields");
   container.innerHTML = "";
 
-  const type = widget.type;
-  const meta = widget.metadata || {};
+  const commonH = document.createElement("div");
+  commonH.className = "field";
+  commonH.innerHTML = "<label>Widget</label>";
+  container.appendChild(commonH);
+  for (const f of WIDGET_COMMON) appendField(container, f, widget);
 
-  const fields = metaFieldsFor(type);
+  const fields = metaFieldsFor(widget.type);
   if (fields.length === 0) return;
 
   const h = document.createElement("div");
   h.className = "field";
   h.innerHTML = "<label>Metadata</label>";
   container.appendChild(h);
-
-  for (const f of fields) {
-    const d = document.createElement("div");
-    d.className = "field";
-    d.innerHTML = `<label>${f.label}</label>`;
-
-    const getVal = () => (f.direct ? activeChip.widget[f.key] : meta[f.key]);
-    const setVal = (val) => {
-      // val === "" clears the field, reverting the widget to ccstatusline's
-      // own default rather than writing an explicit "empty" value.
-      if (f.direct) {
-        if (val) activeChip.widget[f.key] = val;
-        else delete activeChip.widget[f.key];
-      } else {
-        if (!activeChip.widget.metadata) activeChip.widget.metadata = {};
-        if (val) activeChip.widget.metadata[f.key] = val;
-        else delete activeChip.widget.metadata[f.key];
-      }
-      renderAll();
-    };
-
-    let input;
-    if (f.kind === "bool") {
-      // ccstatusline stores flags as the literal strings "true"/"false"
-      // (isMetadataFlagEnabled checks === "true"), never a JSON boolean.
-      input = document.createElement("input");
-      input.type = "checkbox";
-      input.checked = getVal() === "true";
-      input.addEventListener("change", () => setVal(input.checked ? "true" : "false"));
-    } else if (f.kind === "select") {
-      input = document.createElement("select");
-      for (const opt of f.options) {
-        const o = document.createElement("option");
-        o.value = opt.value;
-        o.textContent = opt.label;
-        input.appendChild(o);
-      }
-      input.value = getVal() || "";
-      input.addEventListener("change", () => setVal(input.value));
-    } else {
-      input = document.createElement(f.multi ? "textarea" : "input");
-      if (f.kind === "number") input.type = "number";
-      input.value = getVal() || "";
-      input.placeholder = f.placeholder || "";
-      input.addEventListener("change", () => setVal(input.value));
-    }
-    d.appendChild(input);
-    container.appendChild(d);
-  }
+  for (const f of fields) appendField(container, f, widget);
 }
 
 function metaFieldsFor(type) {
@@ -753,6 +770,9 @@ function confirmSavePreset() {
     const out = { type: w.type };
     if (w.color) out.color = w.color;
     if (w.character) out.character = w.character;
+    if (w.rawValue) out.rawValue = true;
+    if (w.merge === true || w.merge === "no-padding") out.merge = w.merge;
+    if (w.hide) out.hide = true;
     if (w.metadata) out.metadata = w.metadata;
     return out;
   }));
