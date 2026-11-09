@@ -6,3 +6,12 @@ venv/
 dist/
 build/
 *.egg-info/
+
+# --- omp .gitignore basics (2026-11-09) ---
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+.pytest_cache/
+.venv/
